@@ -13,7 +13,7 @@ void analyze_packet(const struct ether_header *eth_header, const struct ip *ip_h
     // IP 헤더의 프로토콜 확인
     if (ip_header->ip_p == IPPROTO_TCP) {
         const struct tcphdr *tcp_header = (const struct tcphdr *)transport_header;
-        printf("ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ"\n);
+        printf("ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ\n");
         printf("Protocol: TCP\n");
         printf("Src MAC(출발지 MAC 주소): %02x:%02x:%02x:%02x:%02x:%02x, Dst MAC(도착지 MAC 주소): %02x:%02x:%02x:%02x:%02x:%02x\n",
                    eth_header->ether_shost[0], eth_header->ether_shost[1], eth_header->ether_shost[2],
