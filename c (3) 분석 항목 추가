@@ -91,7 +91,7 @@ void analyze_packet(const struct ether_header *eth_header, const struct ip *ip_h
                 eth_header->ether_dhost[0], eth_header->ether_dhost[1], eth_header->ether_dhost[2],
                 eth_header->ether_dhost[3], eth_header->ether_dhost[4], eth_header->ether_dhost[5],
                 inet_ntoa(ip_header->ip_src), inet_ntoa(ip_header->ip_dst),
-                ntohs(tcp_header->th_sport), ntohs(tcp_header->th_dport),
+                ntohs(udp_header->th_sport), ntohs(udp_header->th_dport),
                 payload);
             system(command);
     }
