@@ -9,36 +9,48 @@
 #include <netinet/udp.h>
 
 // 패킷 분석 함수
-void analyze_packet(const struct ether_header *eth_header, const struct ip *ip_header, const void *transport_header, int transport_protocol) {
-    if (transport_protocol == IPPROTO_TCP) {
-        const struct tcphdr *tcp_header = (struct tcphdr*)transport_header;
-        printf("Transport Protocol(프로토콜): TCP\n");
-        printf("Source Port(출발지 포트): %d\n", ntohs(tcp_header->th_sport));
-        printf("Destination Port(도착지 포트): %d\n", ntohs(tcp_header->th_dport));
+void analyze_packet(const struct ether_header *eth_header, const struct ip *ip_header, const void *transport_header, const u_char *payload, int payload_length) {
+    // IP 헤더의 프로토콜 확인
+    if (ip_header->ip_p == IPPROTO_TCP) {
+        const struct tcphdr *tcp_header = (const struct tcphdr *)transport_header;
+        printf("ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ")
+        printf("Protocol: TCP\n");
+        printf("Src MAC(출발지 MAC 주소): %02x:%02x:%02x:%02x:%02x:%02x, Dst MAC(도착지 MAC 주소): %02x:%02x:%02x:%02x:%02x:%02x\n",
+                   eth_header->ether_shost[0], eth_header->ether_shost[1], eth_header->ether_shost[2],
+                   eth_header->ether_shost[3], eth_header->ether_shost[4], eth_header->ether_shost[5],
+                   eth_header->ether_dhost[0], eth_header->ether_dhost[1], eth_header->ether_dhost[2],
+                   eth_header->ether_dhost[3], eth_header->ether_dhost[4], eth_header->ether_dhost[5]);
+        printf("Src IP(출발지 IP 주소): %s, Dst IP(도착지 IP 주소): %s\n", inet_ntoa(ip_header->ip_src), inet_ntoa(ip_header->ip_dst));
+        printf("Src Port(출발지 포트): %d, Dst Port(도착지 포트): %d\n", ntohs(tcp_header->th_sport), ntohs(tcp_header->th_dport));
+
+        // TCP 특정 필드 정보 출력
         printf("Sequence Number(순서번호): %u\n", ntohl(tcp_header->th_seq));
         printf("Acknowledgment Number(확인응답번호): %u\n", ntohl(tcp_header->th_ack));
         printf("Header Length(헤더길이): %d bytes\n", tcp_header->th_off * 4);
         printf("Flags: ");
-        if (tcp_header->th_flags & TH_SYN) printf("SYN ");
-        if (tcp_header->th_flags & TH_ACK) printf("ACK ");
-        if (tcp_header->th_flags & TH_FIN) printf("FIN ");
-        if (tcp_header->th_flags & TH_RST) printf("RST ");
+        if (tcp_header->th_flags & TH_SYN) printf("SYN (동기화) ");
+        if (tcp_header->th_flags & TH_ACK) printf("ACK (승인) ");
+        if (tcp_header->th_flags & TH_FIN) printf("FIN (종료)");
+        if (tcp_header->th_flags & TH_RST) printf("RST (초기화)");
         printf("\n");
         printf("Window(여유공간크기): %d\n", ntohs(tcp_header->th_win));
-        printf("Checksum(체크섬): 0x%x\n", ntohs(tcp_header->th_sum));
+        printf("Checksum: 0x%x\n", ntohs(tcp_header->th_sum));
         printf("Urgent Pointer(긴급포인터): %d\n", ntohs(tcp_header->th_urp));
-        // TCP 헤더의 옵션 정보
-        printf("Maximum Segment Size(최대 세그먼트 크기): %d bytes\n", ntohs(*((uint16_t*)(tcp_header + 1))));
-        printf("Window Scale(윈도우 크기 확장): 2^%d=%d\n", *((uint8_t*)(tcp_header + 1) + 2), 1 << (*((uint8_t*)(tcp_header + 1) + 2)));
-        if (tcp_header->th_off * 4 > 20) {
-            printf("SACK Permitted\n");
-        }
-    } else if (transport_protocol == IPPROTO_UDP) {
-        const struct udphdr *udp_header = (struct udphdr*)transport_header;
-        printf("Transport Protocol(프로토콜): UDP\n");
-        printf("Source Port(출발지 포트): %d\n", ntohs(udp_header->uh_sport));
-        printf("Destination Port(도착지 포드): %d\n", ntohs(udp_header->uh_dport));
+    } else if (ip_header->ip_p == IPPROTO_UDP) {
+        const struct udphdr *udp_header = (const struct udphdr *)transport_header;
+
+        printf("ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ")
+        printf("Protocol: UDP\n");
+        printf("Src MAC(출발지 MAC 주소): %02x:%02x:%02x:%02x:%02x:%02x, Dst MAC(도착지 MAC 주소): %02x:%02x:%02x:%02x:%02x:%02x\n",
+                   eth_header->ether_shost[0], eth_header->ether_shost[1], eth_header->ether_shost[2],
+                   eth_header->ether_shost[3], eth_header->ether_shost[4], eth_header->ether_shost[5],
+                   eth_header->ether_dhost[0], eth_header->ether_dhost[1], eth_header->ether_dhost[2],
+                   eth_header->ether_dhost[3], eth_header->ether_dhost[4], eth_header->ether_dhost[5]);
+        printf("Src IP(출발지 IP 주소): %s, Dst IP(도착지 IP 주소): %s\n", inet_ntoa(ip_header->ip_src), inet_ntoa(ip_header->ip_dst));
+        printf("Src Port(출발지 포트): %d, Dst Port(도착지 포트): %d\n", ntohs(udp_header->uh_sport), ntohs(udp_header->uh_dport));
     }
+
+    printf("\n");
 }
 
 // 패킷 핸들러 함수
@@ -46,30 +58,21 @@ void packet_handler(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char
     const struct ether_header *eth_header;
     const struct ip *ip_header;
     const void *transport_header;
-    int transport_protocol;
+    int ip_header_length;
 
     // 이더넷 헤더 분석
-    eth_header = (struct ether_header *)packet;
+    eth_header = (const struct ether_header *)packet;
     if (ntohs(eth_header->ether_type) == ETHERTYPE_IP) {
-        ip_header = (struct ip*)(packet + sizeof(struct ether_header));
+        ip_header = (const struct ip *)(packet + sizeof(struct ether_header));
 
         // IP 헤더 길이 계산 (IHL 필드는 32비트 워드 단위)
-        int ip_header_length = ip_header->ip_hl * 4;
+        ip_header_length = ip_header->ip_hl * 4;
 
-        // 전송 계층 프로토콜 결정 (TCP 또는 UDP)
-        if (ip_header->ip_p == IPPROTO_TCP) {
-            transport_protocol = IPPROTO_TCP;
-            transport_header = (void*)(packet + sizeof(struct ether_header) + ip_header_length);
-        } else if (ip_header->ip_p == IPPROTO_UDP) {
-            transport_protocol = IPPROTO_UDP;
-            transport_header = (void*)(packet + sizeof(struct ether_header) + ip_header_length);
-        } else {
-            // TCP 또는 UDP가 아닌 경우 무시
-            return;
-        }
+        // 트랜스포트 계층 헤더 위치 계산
+        transport_header = (const u_char *)ip_header + ip_header_length;
 
         // 패킷 분석 함수 호출
-        analyze_packet(eth_header, ip_header, transport_header, transport_protocol);
+        analyze_packet(eth_header, ip_header, transport_header, packet + sizeof(struct ether_header) + ip_header_length, pkthdr->len - (sizeof(struct ether_header) + ip_header_length));
     }
 }
 
@@ -78,7 +81,7 @@ int main() {
     char errbuf[PCAP_ERRBUF_SIZE], *dev;
     pcap_t *handle;
     struct bpf_program fp;
-    char filter_exp[] = "tcp or udp"; // TCP 또는 UDP 패킷 필터링
+    char filter_exp[] = "tcp or udp";
     bpf_u_int32 net;
 
     // 사용할 네트워크 장치 찾기
