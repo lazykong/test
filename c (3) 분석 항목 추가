@@ -36,6 +36,29 @@ void analyze_packet(const struct ether_header *eth_header, const struct ip *ip_h
         printf("Window(여유공간크기): %d\n", ntohs(tcp_header->th_win));
         printf("Checksum: 0x%x\n", ntohs(tcp_header->th_sum));
         printf("Urgent Pointer(긴급포인터): %d\n", ntohs(tcp_header->th_urp));
+
+        if (payload_length > 0) {
+                printf("Payload (%d bytes):\n", payload_length);
+                for (int i = 0; i < payload_length; i++) {
+                    printf("%02x ", payload[i]);
+                    if ((i + 1) % 16 == 0) printf("\n");
+                }
+                printf("\n");
+            } else {
+                printf("No Payload\n");
+            }
+
+            // Wireshark Lua 스크립트에 패킷 정보 전달
+            char command[1000];
+            sprintf(command, "echo 'packet_info(\"%02x:%02x:%02x:%02x:%02x:%02x\", \"%02x:%02x:%02x:%02x:%02x:%02x\", \"%s\", \"%s\", %d, %d, \"%s\")' | wireshark -X lua_script:wireshark_script.lua -k -i -", 
+                eth_header->ether_shost[0], eth_header->ether_shost[1], eth_header->ether_shost[2],
+                eth_header->ether_shost[3], eth_header->ether_shost[4], eth_header->ether_shost[5],
+                eth_header->ether_dhost[0], eth_header->ether_dhost[1], eth_header->ether_dhost[2],
+                eth_header->ether_dhost[3], eth_header->ether_dhost[4], eth_header->ether_dhost[5],
+                inet_ntoa(ip_header->ip_src), inet_ntoa(ip_header->ip_dst),
+                ntohs(tcp_header->th_sport), ntohs(tcp_header->th_dport),
+                payload);
+            system(command);
     } else if (ip_header->ip_p == IPPROTO_UDP) {
         const struct udphdr *udp_header = (const struct udphdr *)transport_header;
 
@@ -48,6 +71,29 @@ void analyze_packet(const struct ether_header *eth_header, const struct ip *ip_h
                    eth_header->ether_dhost[3], eth_header->ether_dhost[4], eth_header->ether_dhost[5]);
         printf("Src IP(출발지 IP 주소): %s, Dst IP(도착지 IP 주소): %s\n", inet_ntoa(ip_header->ip_src), inet_ntoa(ip_header->ip_dst));
         printf("Src Port(출발지 포트): %d, Dst Port(도착지 포트): %d\n", ntohs(udp_header->uh_sport), ntohs(udp_header->uh_dport));
+
+        if (payload_length > 0) {
+                printf("Payload (%d bytes):\n", payload_length);
+                for (int i = 0; i < payload_length; i++) {
+                    printf("%02x ", payload[i]);
+                    if ((i + 1) % 16 == 0) printf("\n");
+                }
+                printf("\n");
+            } else {
+                printf("No Payload\n");
+            }
+
+            // Wireshark Lua 스크립트에 패킷 정보 전달
+            char command[1000];
+            sprintf(command, "echo 'packet_info(\"%02x:%02x:%02x:%02x:%02x:%02x\", \"%02x:%02x:%02x:%02x:%02x:%02x\", \"%s\", \"%s\", %d, %d, \"%s\")' | wireshark -X lua_script:wireshark_script.lua -k -i -", 
+                eth_header->ether_shost[0], eth_header->ether_shost[1], eth_header->ether_shost[2],
+                eth_header->ether_shost[3], eth_header->ether_shost[4], eth_header->ether_shost[5],
+                eth_header->ether_dhost[0], eth_header->ether_dhost[1], eth_header->ether_dhost[2],
+                eth_header->ether_dhost[3], eth_header->ether_dhost[4], eth_header->ether_dhost[5],
+                inet_ntoa(ip_header->ip_src), inet_ntoa(ip_header->ip_dst),
+                ntohs(tcp_header->th_sport), ntohs(tcp_header->th_dport),
+                payload);
+            system(command);
     }
 
     printf("\n");
