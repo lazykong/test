@@ -12,32 +12,32 @@
 void analyze_packet(const struct ether_header *eth_header, const struct ip *ip_header, const void *transport_header, int transport_protocol) {
     if (transport_protocol == IPPROTO_TCP) {
         const struct tcphdr *tcp_header = (struct tcphdr*)transport_header;
-        printf("Transport Protocol: TCP\n");
-        printf("Source Port: %d\n", ntohs(tcp_header->th_sport));
-        printf("Destination Port: %d\n", ntohs(tcp_header->th_dport));
-        printf("Sequence Number: %u\n", ntohl(tcp_header->th_seq));
-        printf("Acknowledgment Number: %u\n", ntohl(tcp_header->th_ack));
-        printf("Header Length: %d bytes\n", tcp_header->th_off * 4);
+        printf("Transport Protocol(프로토콜): TCP\n");
+        printf("Source Port(출발지 포트): %d\n", ntohs(tcp_header->th_sport));
+        printf("Destination Port(도착지 포트): %d\n", ntohs(tcp_header->th_dport));
+        printf("Sequence Number(순서번호): %u\n", ntohl(tcp_header->th_seq));
+        printf("Acknowledgment Number(확인응답번호): %u\n", ntohl(tcp_header->th_ack));
+        printf("Header Length(헤더길이): %d bytes\n", tcp_header->th_off * 4);
         printf("Flags: ");
         if (tcp_header->th_flags & TH_SYN) printf("SYN ");
         if (tcp_header->th_flags & TH_ACK) printf("ACK ");
         if (tcp_header->th_flags & TH_FIN) printf("FIN ");
         if (tcp_header->th_flags & TH_RST) printf("RST ");
         printf("\n");
-        printf("Window: %d\n", ntohs(tcp_header->th_win));
-        printf("Checksum: 0x%x\n", ntohs(tcp_header->th_sum));
-        printf("Urgent Pointer: %d\n", ntohs(tcp_header->th_urp));
+        printf("Window(여유공간크기): %d\n", ntohs(tcp_header->th_win));
+        printf("Checksum(체크섬): 0x%x\n", ntohs(tcp_header->th_sum));
+        printf("Urgent Pointer(긴급포인터): %d\n", ntohs(tcp_header->th_urp));
         // TCP 헤더의 옵션 정보
-        printf("Maximum Segment Size: %d bytes\n", ntohs(*((uint16_t*)(tcp_header + 1))));
-        printf("Window Scale: 2^%d=%d\n", *((uint8_t*)(tcp_header + 1) + 2), 1 << (*((uint8_t*)(tcp_header + 1) + 2)));
+        printf("Maximum Segment Size(최대 세그먼트 크기): %d bytes\n", ntohs(*((uint16_t*)(tcp_header + 1))));
+        printf("Window Scale(윈도우 크기 확장): 2^%d=%d\n", *((uint8_t*)(tcp_header + 1) + 2), 1 << (*((uint8_t*)(tcp_header + 1) + 2)));
         if (tcp_header->th_off * 4 > 20) {
             printf("SACK Permitted\n");
         }
     } else if (transport_protocol == IPPROTO_UDP) {
         const struct udphdr *udp_header = (struct udphdr*)transport_header;
-        printf("Transport Protocol: UDP\n");
-        printf("Source Port: %d\n", ntohs(udp_header->uh_sport));
-        printf("Destination Port: %d\n", ntohs(udp_header->uh_dport));
+        printf("Transport Protocol(프로토콜): UDP\n");
+        printf("Source Port(출발지 포트): %d\n", ntohs(udp_header->uh_sport));
+        printf("Destination Port(도착지 포드): %d\n", ntohs(udp_header->uh_dport));
     }
 }
 
