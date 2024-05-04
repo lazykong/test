@@ -1,0 +1,135 @@
+#include <pcap.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <netinet/if_ether.h>
+#include <netinet/ip.h>
+#include <netinet/tcp.h>
+#include <netinet/udp.h>
+
+// 패킷 분석 함수
+void analyze_packet(const struct ether_header *eth_header, const struct ip *ip_header, const void *transport_header, int transport_protocol) {
+    if (transport_protocol == IPPROTO_TCP) {
+        const struct tcphdr *tcp_header = (struct tcphdr*)transport_header;
+        printf("Transport Protocol: TCP\n");
+        printf("Source Port: %d\n", ntohs(tcp_header->th_sport));
+        printf("Destination Port: %d\n", ntohs(tcp_header->th_dport));
+        printf("Sequence Number: %u\n", ntohl(tcp_header->th_seq));
+        printf("Acknowledgment Number: %u\n", ntohl(tcp_header->th_ack));
+        printf("Header Length: %d bytes\n", tcp_header->th_off * 4);
+        printf("Flags: ");
+        if (tcp_header->th_flags & TH_SYN) printf("SYN ");
+        if (tcp_header->th_flags & TH_ACK) printf("ACK ");
+        if (tcp_header->th_flags & TH_FIN) printf("FIN ");
+        if (tcp_header->th_flags & TH_RST) printf("RST ");
+        printf("\n");
+        printf("Window: %d\n", ntohs(tcp_header->th_win));
+        printf("Checksum: 0x%x\n", ntohs(tcp_header->th_sum));
+        printf("Urgent Pointer: %d\n", ntohs(tcp_header->th_urp));
+        // TCP 헤더의 옵션 정보
+        printf("Maximum Segment Size: %d bytes\n", ntohs(*((uint16_t*)(tcp_header + 1))));
+        printf("Window Scale: 2^%d=%d\n", *((uint8_t*)(tcp_header + 1) + 2), 1 << (*((uint8_t*)(tcp_header + 1) + 2)));
+        if (tcp_header->th_off * 4 > 20) {
+            printf("SACK Permitted\n");
+        }
+    } else if (transport_protocol == IPPROTO_UDP) {
+        const struct udphdr *udp_header = (struct udphdr*)transport_header;
+        printf("Transport Protocol: UDP\n");
+        printf("Source Port: %d\n", ntohs(udp_header->uh_sport));
+        printf("Destination Port: %d\n", ntohs(udp_header->uh_dport));
+    }
+}
+
+// 패킷 핸들러 함수
+void packet_handler(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char *packet) {
+    const struct ether_header *eth_header;
+    const struct ip *ip_header;
+    const void *transport_header;
+    int transport_protocol;
+
+    // 이더넷 헤더 분석
+    eth_header = (struct ether_header *)packet;
+    if (ntohs(eth_header->ether_type) == ETHERTYPE_IP) {
+        ip_header = (struct ip*)(packet + sizeof(struct ether_header));
+
+        // IP 헤더 길이 계산 (IHL 필드는 32비트 워드 단위)
+        int ip_header_length = ip_header->ip_hl * 4;
+
+        // 전송 계층 프로토콜 결정 (TCP 또는 UDP)
+        if (ip_header->ip_p == IPPROTO_TCP) {
+            transport_protocol = IPPROTO_TCP;
+            transport_header = (void*)(packet + sizeof(struct ether_header) + ip_header_length);
+        } else if (ip_header->ip_p == IPPROTO_UDP) {
+            transport_protocol = IPPROTO_UDP;
+            transport_header = (void*)(packet + sizeof(struct ether_header) + ip_header_length);
+        } else {
+            // TCP 또는 UDP가 아닌 경우 무시
+            return;
+        }
+
+        // 패킷 분석 함수 호출
+        analyze_packet(eth_header, ip_header, transport_header, transport_protocol);
+    }
+}
+
+int main() {
+    pcap_if_t *alldevsp, *device;
+    char errbuf[PCAP_ERRBUF_SIZE], *dev;
+    pcap_t *handle;
+    struct bpf_program fp;
+    char filter_exp[] = "tcp or udp"; // TCP 또는 UDP 패킷 필터링
+    bpf_u_int32 net;
+
+    // 사용할 네트워크 장치 찾기
+    if (pcap_findalldevs(&alldevsp, errbuf)) {
+        fprintf(stderr, "Error in pcap_findalldevs: %s\n", errbuf);
+        exit(1);
+    }
+
+    // 첫 번째 네트워크 장치 사용
+    device = alldevsp;
+    if (device == NULL) {
+        fprintf(stderr, "No devices found.\n");
+        return 2;
+    }
+    dev = device->name;
+
+    printf("Using device %s\n", dev);
+
+    // 장치 열기
+    handle = pcap_open_live(dev, BUFSIZ, 1, 1000, errbuf);
+    if (handle == NULL) {
+        fprintf(stderr, "Couldn't open device %s: %s\n", dev, errbuf);
+        exit(2);
+    }
+
+    // 네트워크 디바이스의 네트워크 번호와 마스크 얻기
+    if (pcap_lookupnet(dev, &net, &net, errbuf) == -1) {
+        fprintf(stderr, "Couldn't get netmask for device %s: %s\n", dev, errbuf);
+        net = 0;
+    }
+
+    // 필터 표현식 컴파일
+    if (pcap_compile(handle, &fp, filter_exp, 0, net) == -1) {
+        fprintf(stderr, "Couldn't parse filter %s: %s\n", filter_exp, pcap_geterr(handle));
+        exit(2);
+    }
+
+    // 필터 설정
+    if (pcap_setfilter(handle, &fp) == -1) {
+        fprintf(stderr, "Couldn't install filter %s: %s\n", filter_exp, pcap_geterr(handle));
+        exit(2);
+    }
+
+    // 패킷 캡처 시작 - 무한 루프로 각 패킷마다 packet_handler 콜백 함수 호출
+    pcap_loop(handle, 0, packet_handler, NULL);
+
+    // 종료 시 리소스 정리
+    pcap_freecode(&fp);
+    pcap_close(handle);
+    pcap_freealldevs(alldevsp);
+
+    printf("Capture complete.\n");
+    return 0;
+}
