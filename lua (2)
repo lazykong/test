@@ -1,0 +1,20 @@
+-- 패킷 캡쳐 콜백 함수 정의
+function packet_callback(packet, ...)
+    local eth_src = packet.eth.src
+    local eth_dst = packet.eth.dst
+    local ip_src = packet.ip.src
+    local ip_dst = packet.ip.dst
+
+    -- TCP 패킷인 경우에만 출력
+    if packet.ip.proto == 6 then
+        print(string.format("Src MAC: %02x:%02x:%02x:%02x:%02x:%02x, Dst MAC: %02x:%02x:%02x:%02x:%02x:%02x",
+            eth_src[0], eth_src[1], eth_src[2], eth_src[3], eth_src[4], eth_src[5],
+            eth_dst[0], eth_dst[1], eth_dst[2], eth_dst[3], eth_dst[4], eth_dst[5]))
+        print(string.format("Src IP: %d.%d.%d.%d, Dst IP: %d.%d.%d.%d",
+            ip_src[0], ip_src[1], ip_src[2], ip_src[3],
+            ip_dst[0], ip_dst[1], ip_dst[2], ip_dst[3]))
+    end
+end
+
+-- 캡처된 패킷을 분석하기 위해 호출될 함수 등록
+register_packet_callback(packet_callback)
