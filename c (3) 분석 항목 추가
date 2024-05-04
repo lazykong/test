@@ -8,117 +8,98 @@
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
 
-// 패킷 분석 함수
-void analyze_packet(const struct ether_header *eth_header, const struct ip *ip_header, const void *transport_header, const u_char *payload, int payload_length) {
-    // IP 헤더의 프로토콜 확인
-    if (ip_header->ip_p == IPPROTO_TCP) {
-        const struct tcphdr *tcp_header = (const struct tcphdr *)transport_header;
-        printf("ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ\n");
-        printf("Protocol: TCP\n");
-        printf("Src MAC(출발지 MAC 주소): %02x:%02x:%02x:%02x:%02x:%02x, Dst MAC(도착지 MAC 주소): %02x:%02x:%02x:%02x:%02x:%02x\n",
-                   eth_header->ether_shost[0], eth_header->ether_shost[1], eth_header->ether_shost[2],
-                   eth_header->ether_shost[3], eth_header->ether_shost[4], eth_header->ether_shost[5],
-                   eth_header->ether_dhost[0], eth_header->ether_dhost[1], eth_header->ether_dhost[2],
-                   eth_header->ether_dhost[3], eth_header->ether_dhost[4], eth_header->ether_dhost[5]);
-        printf("Src IP(출발지 IP 주소): %s, Dst IP(도착지 IP 주소): %s\n", inet_ntoa(ip_header->ip_src), inet_ntoa(ip_header->ip_dst));
-        printf("Src Port(출발지 포트): %d, Dst Port(도착지 포트): %d\n", ntohs(tcp_header->th_sport), ntohs(tcp_header->th_dport));
+// TCP 패킷 분석 함수
+void analyze_tcp_packet(const struct ether_header *eth_header, const struct ip *ip_header, const struct tcphdr *tcp_header, const u_char *payload, int payload_length) {
+    printf("----- TCP Packet Analysis -----\n");
+    printf("Src MAC(출발지 MAC 주소): %02x:%02x:%02x:%02x:%02x:%02x, Dst MAC(도착지 MAC 주소): %02x:%02x:%02x:%02x:%02x:%02x\n",
+           eth_header->ether_shost[0], eth_header->ether_shost[1], eth_header->ether_shost[2],
+           eth_header->ether_shost[3], eth_header->ether_shost[4], eth_header->ether_shost[5],
+           eth_header->ether_dhost[0], eth_header->ether_dhost[1], eth_header->ether_dhost[2],
+           eth_header->ether_dhost[3], eth_header->ether_dhost[4], eth_header->ether_dhost[5]);
+    printf("Src IP(출발지 IP): %s, Dst IP(도착지 IP): %s\n", inet_ntoa(ip_header->ip_src), inet_ntoa(ip_header->ip_dst));
+    printf("Src Port(출발지 포트): %d, Dst Port(도착지 포트): %d\n", ntohs(tcp_header->th_sport), ntohs(tcp_header->th_dport));
 
-        // TCP 특정 필드 정보 출력
-        printf("Sequence Number(순서번호): %u\n", ntohl(tcp_header->th_seq));
-        printf("Acknowledgment Number(확인응답번호): %u\n", ntohl(tcp_header->th_ack));
-        printf("Header Length(헤더길이): %d bytes\n", tcp_header->th_off * 4);
-        printf("Flags: ");
-        if (tcp_header->th_flags & TH_SYN) printf("SYN (동기화) ");
-        if (tcp_header->th_flags & TH_ACK) printf("ACK (승인) ");
-        if (tcp_header->th_flags & TH_FIN) printf("FIN (종료)");
-        if (tcp_header->th_flags & TH_RST) printf("RST (초기화)");
+    printf("Source Port (출발지 포트) : %d\n", ntohs(tcp_header->th_sport));
+    printf("Destination Port (도착지 포트) : %d\n", ntohs(tcp_header->th_dport));
+    printf("Sequence Number (순서번호) : %u\n", ntohl(tcp_header->th_seq));
+    printf("Acknowlegment Number (확인응답번호) : %u\n", ntohl(tcp_header->th_ack));
+    printf("Header Length (헤더길이) : %d bytes\n", tcp_header->th_off * 4);
+    printf("Flags : SYN (동기화)=%d\n", (tcp_header->th_flags & TH_SYN) ? 1 : 0);
+    printf("Window (여유공간크기) : %d\n", ntohs(tcp_header->th_win));
+    printf("Checksum (체크섬) : 0x%x\n", ntohs(tcp_header->th_sum));
+    printf("Urgent Pointer (긴급포인터) : %d\n", ntohs(tcp_header->th_urp));
+
+    // 페이로드 출력
+    if (payload_length > 0) {
+        printf("Payload (%d bytes):\n", payload_length);
+        for (int i = 0; i < payload_length; i++) {
+            printf("%02x ", payload[i]);
+            if ((i + 1) % 16 == 0) printf("\n");
+        }
         printf("\n");
-        printf("Window(여유공간크기): %d\n", ntohs(tcp_header->th_win));
-        printf("Checksum: 0x%x\n", ntohs(tcp_header->th_sum));
-        printf("Urgent Pointer(긴급포인터): %d\n", ntohs(tcp_header->th_urp));
-
-        if (payload_length > 0) {
-                printf("Payload (%d bytes):\n", payload_length);
-                for (int i = 0; i < payload_length; i++) {
-                    printf("%02x ", payload[i]);
-                    if ((i + 1) % 16 == 0) printf("\n");
-                }
-                printf("\n");
-            } else {
-                printf("No Payload\n");
-            }
-
-            // Wireshark Lua 스크립트에 패킷 정보 전달
-            char command[1000];
-            sprintf(command, "echo 'packet_info(\"%02x:%02x:%02x:%02x:%02x:%02x\", \"%02x:%02x:%02x:%02x:%02x:%02x\", \"%s\", \"%s\", %d, %d, \"%s\")' | wireshark -X lua_script:wireshark_script.lua -k -i -", 
-                eth_header->ether_shost[0], eth_header->ether_shost[1], eth_header->ether_shost[2],
-                eth_header->ether_shost[3], eth_header->ether_shost[4], eth_header->ether_shost[5],
-                eth_header->ether_dhost[0], eth_header->ether_dhost[1], eth_header->ether_dhost[2],
-                eth_header->ether_dhost[3], eth_header->ether_dhost[4], eth_header->ether_dhost[5],
-                inet_ntoa(ip_header->ip_src), inet_ntoa(ip_header->ip_dst),
-                ntohs(tcp_header->th_sport), ntohs(tcp_header->th_dport),
-                payload);
-            system(command);
-    } else if (ip_header->ip_p == IPPROTO_UDP) {
-        const struct udphdr *udp_header = (const struct udphdr *)transport_header;
-
-        printf("ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ\n");
-        printf("Protocol: UDP\n");
-        printf("Src MAC(출발지 MAC 주소): %02x:%02x:%02x:%02x:%02x:%02x, Dst MAC(도착지 MAC 주소): %02x:%02x:%02x:%02x:%02x:%02x\n",
-                   eth_header->ether_shost[0], eth_header->ether_shost[1], eth_header->ether_shost[2],
-                   eth_header->ether_shost[3], eth_header->ether_shost[4], eth_header->ether_shost[5],
-                   eth_header->ether_dhost[0], eth_header->ether_dhost[1], eth_header->ether_dhost[2],
-                   eth_header->ether_dhost[3], eth_header->ether_dhost[4], eth_header->ether_dhost[5]);
-        printf("Src IP(출발지 IP 주소): %s, Dst IP(도착지 IP 주소): %s\n", inet_ntoa(ip_header->ip_src), inet_ntoa(ip_header->ip_dst));
-        printf("Src Port(출발지 포트): %d, Dst Port(도착지 포트): %d\n", ntohs(udp_header->uh_sport), ntohs(udp_header->uh_dport));
-
-        if (payload_length > 0) {
-                printf("Payload (%d bytes):\n", payload_length);
-                for (int i = 0; i < payload_length; i++) {
-                    printf("%02x ", payload[i]);
-                    if ((i + 1) % 16 == 0) printf("\n");
-                }
-                printf("\n");
-            } else {
-                printf("No Payload\n");
-            }
-
-            // Wireshark Lua 스크립트에 패킷 정보 전달
-            char command[1000];
-            sprintf(command, "echo 'packet_info(\"%02x:%02x:%02x:%02x:%02x:%02x\", \"%02x:%02x:%02x:%02x:%02x:%02x\", \"%s\", \"%s\", %d, %d, \"%s\")' | wireshark -X lua_script:wireshark_script.lua -k -i -", 
-                eth_header->ether_shost[0], eth_header->ether_shost[1], eth_header->ether_shost[2],
-                eth_header->ether_shost[3], eth_header->ether_shost[4], eth_header->ether_shost[5],
-                eth_header->ether_dhost[0], eth_header->ether_dhost[1], eth_header->ether_dhost[2],
-                eth_header->ether_dhost[3], eth_header->ether_dhost[4], eth_header->ether_dhost[5],
-                inet_ntoa(ip_header->ip_src), inet_ntoa(ip_header->ip_dst),
-                ntohs(udp_header->th_sport), ntohs(udp_header->th_dport),
-                payload);
-            system(command);
+    } else {
+        printf("No Payload\n");
     }
+}
 
-    printf("\n");
+// UDP 패킷 분석 함수
+void analyze_udp_packet(const struct ether_header *eth_header, const struct ip *ip_header, const struct udphdr *udp_header, const u_char *payload, int payload_length) {
+    printf("----- UDP Packet Analysis -----\n");
+    printf("Src MAC(출발지 MAC 주소): %02x:%02x:%02x:%02x:%02x:%02x, Dst MAC(도착지 MAC 주소): %02x:%02x:%02x:%02x:%02x:%02x\n",
+           eth_header->ether_shost[0], eth_header->ether_shost[1], eth_header->ether_shost[2],
+           eth_header->ether_shost[3], eth_header->ether_shost[4], eth_header->ether_shost[5],
+           eth_header->ether_dhost[0], eth_header->ether_dhost[1], eth_header->ether_dhost[2],
+           eth_header->ether_dhost[3], eth_header->ether_dhost[4], eth_header->ether_dhost[5]);
+    printf("Src IP(출발지 IP): %s, Dst IP(도착지 IP): %s\n", inet_ntoa(ip_header->ip_src), inet_ntoa(ip_header->ip_dst));
+    printf("Src Port(출발지 포트): %d, Dst Port(도착지 포트): %d\n", ntohs(udp_header->uh_sport), ntohs(udp_header->uh_dport));
+
+    printf("Source Port (출발지 포트) : %d\n", ntohs(udp_header->uh_sport));
+    printf("Destination Port (도착지 포트) : %d\n", ntohs(udp_header->uh_dport));
+
+    // 페이로드 출력
+    if (payload_length > 0) {
+        printf("Payload (%d bytes):\n", payload_length);
+        for (int i = 0; i < payload_length; i++) {
+            printf("%02x ", payload[i]);
+            if ((i + 1) % 16 == 0) printf("\n");
+        }
+        printf("\n");
+    } else {
+        printf("No Payload\n");
+    }
 }
 
 // 패킷 핸들러 함수
 void packet_handler(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char *packet) {
     const struct ether_header *eth_header;
     const struct ip *ip_header;
-    const void *transport_header;
+    const u_char *payload;
     int ip_header_length;
 
     // 이더넷 헤더 분석
-    eth_header = (const struct ether_header *)packet;
+    eth_header = (struct ether_header *)packet;
     if (ntohs(eth_header->ether_type) == ETHERTYPE_IP) {
-        ip_header = (const struct ip *)(packet + sizeof(struct ether_header));
+        ip_header = (struct ip*)(packet + sizeof(struct ether_header));
 
         // IP 헤더 길이 계산 (IHL 필드는 32비트 워드 단위)
         ip_header_length = ip_header->ip_hl * 4;
 
-        // 트랜스포트 계층 헤더 위치 계산
-        transport_header = (const u_char *)ip_header + ip_header_length;
+        if (ip_header->ip_p == IPPROTO_TCP) {
+            const struct tcphdr *tcp_header = (struct tcphdr*)((u_char*)ip_header + ip_header_length);
+            int tcp_header_length = tcp_header->th_off * 4;
+            payload = (u_char*)tcp_header + tcp_header_length;
+            int payload_length = pkthdr->len - (sizeof(struct ether_header) + ip_header_length + tcp_header_length);
 
-        // 패킷 분석 함수 호출
-        analyze_packet(eth_header, ip_header, transport_header, packet + sizeof(struct ether_header) + ip_header_length, pkthdr->len - (sizeof(struct ether_header) + ip_header_length));
+            // TCP 패킷 분석 함수 호출
+            analyze_tcp_packet(eth_header, ip_header, tcp_header, payload, payload_length);
+        } else if (ip_header->ip_p == IPPROTO_UDP) {
+            const struct udphdr *udp_header = (struct udphdr*)((u_char*)ip_header + ip_header_length);
+            payload = (u_char*)udp_header + sizeof(struct udphdr);
+            int payload_length = pkthdr->len - (sizeof(struct ether_header) + ip_header_length + sizeof(struct udphdr));
+
+            // UDP 패킷 분석 함수 호출
+            analyze_udp_packet(eth_header, ip_header, udp_header, payload, payload_length);
+        }
     }
 }
 
@@ -127,7 +108,7 @@ int main() {
     char errbuf[PCAP_ERRBUF_SIZE], *dev;
     pcap_t *handle;
     struct bpf_program fp;
-    char filter_exp[] = "tcp or udp";
+    char filter_exp[] = "tcp or udp"; // TCP 및 UDP 필터
     bpf_u_int32 net;
 
     // 사용할 네트워크 장치 찾기
