@@ -4,20 +4,8 @@
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
+#include <netinet/udp.h>
 
-// RDP 패킷을 식별하기 위한 함수
-int is_rdp_packet(const u_char *packet, int packet_length) {
-    // TLSv1.2 패킷의 헤더 크기
-    const int tls_header_size = 5;
-    // TLSv1.2 프로토콜을 사용하는 경우
-    if (packet_length > tls_header_size && packet[0] == 0x16 && packet[1] == 0x03 && packet[2] == 0x03) {
-        // RDP 패킷으로 인식할 수 있는 추가적인 특성을 여기에 추가할 수 있습니다.
-        return 1;
-    }
-    return 0;
-}
-
-// 패킷 핸들러 함수
 void packet_handler(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char *packet) {
     const struct ip *ip_header; // IP 헤더
     const struct tcphdr *tcp_header; // TCP 헤더
@@ -33,40 +21,80 @@ void packet_handler(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char
     if (ip_header->ip_p == IPPROTO_TCP) {
         tcp_header = (struct tcphdr*)((u_char*)ip_header + ip_header_length);
 
-        // RDP 패킷인 경우 (포트 3389)
-        if (ntohs(tcp_header->th_dport) == 3389 || ntohs(tcp_header->th_sport) == 3389) {
-            // 패킷 길이와 패킷 데이터를 is_rdp_packet 함수로 전달하여 RDP 패킷인지 확인
-            if (is_rdp_packet(packet + ip_header_length + sizeof(struct tcphdr), pkthdr->len - ip_header_length - sizeof(struct tcphdr))) {
-                printf("RDP Packet Detected\n");
-                // 추가적인 RDP 패킷 처리 로직을 추가할 수 있습니다.
-                return;
-            }
-        }
         // SSH 패킷인 경우 (포트 22)
-        else if (ntohs(tcp_header->th_dport) == 22 || ntohs(tcp_header->th_sport) == 22) {
+        if (ntohs(tcp_header->th_dport) == 22 || ntohs(tcp_header->th_sport) == 22) {
             printf("SSH Packet Detected\n");
             // 추가적인 SSH 패킷 처리 로직을 추가할 수 있습니다.
-            return;
+        }
+        // RDP 패킷인 경우 (포트 3389)
+        else if (ntohs(tcp_header->th_dport) == 3389 || ntohs(tcp_header->th_sport) == 3389) {
+            printf("RDP Packet Detected\n");
+            // 추가적인 RDP 패킷 처리 로직을 추가할 수 있습니다.
+
+            bool is_rdp_packet(const unsigned char* packet, size_t len) {
+    // X.224 헤더와 TPKT 헤더 확인
+    if (len >= 4 && packet[0] == 0x03 && packet[1] == 0x00 && packet[2] == 0x00 && packet[3] == 0x0e) {
+        // RDP PDU 유형 확인
+        if (len >= 6 && packet[4] == 0x10 && packet[5] == 0x00) {
+            return true; // 연결 요청 PDU
+        }
+        if (len >= 6 && packet[4] == 0x13 && packet[5] == 0x00) {
+            return true; // 연결 승인 PDU
+        }
+        // 추가적인 PDU 유형 확인 로직 추가
+    }
+    return false;
+}
+bool is_rdp_connection_packet(const unsigned char* packet, size_t len) {
+    // RDP 연결 설정 정보 교환 패킷 확인
+    if (len >= 8 && packet[0] == 0x03 && packet[1] == 0x00 && packet[2] == 0x00 && packet[3] == 0x0e &&
+        packet[4] == 0x10 && packet[5] == 0x00 && packet[6] == 0x01 && packet[7] == 0x00) {
+        return true;
+    }
+    return false;
+}
+bool is_rdp_packet_by_structure(const unsigned char* packet, size_t len) {
+    // RDP 패킷 헤더와 페이로드 확인
+    if (len >= 6 && packet[0] == 0x03 && packet[1] == 0x00 && packet[2] == 0x00 && packet[3] == 0x0e &&
+        packet[4] == 0x10 && packet[5] == 0x00) {
+        // 추가적인 RDP 패킷 구조 확인 로직 추가
+        return true;
+    }
+    return false;
+}
+bool is_rdp_packet_by_processing(const unsigned char* packet, size_t len) {
+    // RDP 데이터 처리 과정 확인
+    if (len >= 8 && packet[0] == 0x03 && packet[1] == 0x00 && packet[2] == 0x00 && packet[3] == 0x0e &&
+        packet[4] == 0x10 && packet[5] == 0x00 && packet[6] == 0x01 && packet[7] == 0x00) {
+        // 추가적인 RDP 데이터 처리 과정 확인 로직 추가
+        return true;
+    }
+    return false;
+}
+bool is_rdp_packet_by_decryption(const unsigned char* packet, size_t len) {
+    // RDP 트래픽 복호화 및 분석
+    if (len >= 8 && packet[0] == 0x03 && packet[1] == 0x00 && packet[2] == 0x00 && packet[3] == 0x0e &&
+        packet[4] == 0x10 && packet[5] == 0x00 && packet[6] == 0x01 && packet[7] == 0x00) {
+        // 추가적인 RDP 트래픽 복호화 및 분석 로직 추가
+        return true;
+    }
+    return false;
+}
+
         }
     }
     // UDP 패킷인 경우
     else if (ip_header->ip_p == IPPROTO_UDP) {
         printf("UDP Packet Detected\n");
         // 추가적인 UDP 패킷 처리 로직을 추가할 수 있습니다.
-        return;
     }
-
     // 다른 유형의 패킷인 경우
-    printf("Unknown Packet Type\n");
+    else {
+        printf("Unknown Packet Type\n");
+    }
 }
 
-// 메인 함수
 int main(int argc, char *argv[]) {
-    if (argc != 2) {
-        fprintf(stderr, "Usage: %s <pcap_file>\n", argv[0]);
-        return 1;
-    }
-
     pcap_t *handle; // pcap 핸들
     char errbuf[PCAP_ERRBUF_SIZE]; // 오류 메시지를 저장할 버퍼
 
@@ -80,8 +108,4 @@ int main(int argc, char *argv[]) {
     // 패킷을 처리하는 함수를 등록합니다.
     pcap_loop(handle, 0, packet_handler, NULL);
 
-    // pcap 핸들을 닫습니다.
-    pcap_close(handle);
-
-    return 0;
-}
+    // 
