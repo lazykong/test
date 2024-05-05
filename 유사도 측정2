@@ -107,8 +107,9 @@ int main(int argc, char *argv[]) {
     char filter_exp[] = "tcp";
     bpf_u_int32 net;
 
+    char pcap_file_path[] = "path/to/your/pcap/file.pcapng";
     // pcap 파일 열기
-    handle = pcap_open_offline(argv[1], errbuf);
+     handle = pcap_open_offline(pcap_file_path, errbuf);
     if (handle == NULL) {
         fprintf(stderr, "Error opening pcap file: %s\n", errbuf);
         return 1;
