@@ -87,14 +87,14 @@ int main(int argc, char *argv[]) {
 
     // 파일 경로를 인자로 받음
     if (argc != 2) {
-        fprintf(stderr, "Usage: %s <pcap_file>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <pcapng_file>\n", argv[0]);
         return 1;
     }
 
     // 패킷 파일 열기
     handle = pcap_open_offline(argv[1], errbuf);
     if (handle == NULL) {
-        fprintf(stderr, "Couldn't open pcap file %s: %s\n", argv[1], errbuf);
+        fprintf(stderr, "Couldn't open pcapng file %s: %s\n", argv[1], errbuf);
         return 2;
     }
 
