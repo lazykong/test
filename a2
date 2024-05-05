@@ -9,11 +9,10 @@
 void packet_handler(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char *packet) {
     const struct ip *ip_header; // IP 헤더
     const struct tcphdr *tcp_header; // TCP 헤더
-    const struct udphdr *udp_header; // UDP 헤더
     int ip_header_length; // IP 헤더 길이
 
-    // 이더넷 헤더를 건너뛰고 IP 헤더로 이동
-    ip_header = (struct ip*)(packet + sizeof(struct ether_header));
+    // IP 헤더로 이동
+    ip_header = (struct ip*)(packet);
 
     // IP 헤더 길이 계산 (IHL 필드는 32비트 워드 단위)
     ip_header_length = ip_header->ip_hl * 4;
@@ -22,22 +21,21 @@ void packet_handler(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char
     if (ip_header->ip_p == IPPROTO_TCP) {
         tcp_header = (struct tcphdr*)((u_char*)ip_header + ip_header_length);
 
-        // SSH 패킷인 경우 (포트 22)
-        if (ntohs(tcp_header->th_dport) == 22 || ntohs(tcp_header->th_sport) == 22) {
-            printf("SSH Packet Detected\n");
-            // 추가적인 SSH 패킷 처리 로직을 추가할 수 있습니다.
-        }
         // RDP 패킷인 경우 (포트 3389)
-        else if (ntohs(tcp_header->th_dport) == 3389 || ntohs(tcp_header->th_sport) == 3389) {
+        if (ntohs(tcp_header->th_dport) == 3389 || ntohs(tcp_header->th_sport) == 3389) {
             printf("RDP Packet Detected\n");
             // 추가적인 RDP 패킷 처리 로직을 추가할 수 있습니다.
+        }
+        // SSH 패킷인 경우 (포트 22)
+        else if (ntohs(tcp_header->th_dport) == 22 || ntohs(tcp_header->th_sport) == 22) {
+            printf("SSH Packet Detected\n");
+            // 추가적인 SSH 패킷 처리 로직을 추가할 수 있습니다.
         }
     }
     // UDP 패킷인 경우
     else if (ip_header->ip_p == IPPROTO_UDP) {
-        udp_header = (struct udphdr*)((u_char*)ip_header + ip_header_length);
-
-        // 여기에 필요한 UDP 패킷 처리 로직을 추가할 수 있습니다.
+        printf("UDP Packet Detected\n");
+        // 추가적인 UDP 패킷 처리 로직을 추가할 수 있습니다.
     }
     // 다른 유형의 패킷인 경우
     else {
@@ -46,21 +44,14 @@ void packet_handler(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char
 }
 
 int main(int argc, char *argv[]) {
+    if (argc != 2) {
+        fprintf(stderr, "Usage: %s <pcap_file>\n", argv[0]);
+        return 1;
+    }
+
     pcap_t *handle; // pcap 핸들
     char errbuf[PCAP_ERRBUF_SIZE]; // 오류 메시지를 저장할 버퍼
 
     // pcap 파일을 열고 핸들을 가져옵니다.
     handle = pcap_open_offline(argv[1], errbuf);
-    if (handle == NULL) {
-        fprintf(stderr, "Error opening pcap file: %s\n", errbuf);
-        return 1;
-    }
-
-    // 패킷을 처리하는 함수를 등록합니다.
-    pcap_loop(handle, 0, packet_handler, NULL);
-
-    // pcap 핸들을 닫습니다.
-    pcap_close(handle);
-
-    return 0;
-}
+ 
