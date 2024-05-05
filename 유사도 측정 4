@@ -5,14 +5,20 @@
 #include <netinet/if_ether.h>
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
-#include <netinet/in.h> // inet_ntoa 함수를 사용하기 위한 헤더
 
-// SSH, RDP, 게임, HTTP, 웹 패킷 데이터 파일 경로
-#define SSH_PACKET_FILE "ssh_packet.bin"
-#define RDP_PACKET_FILE "rdp_packet.bin"
-#define GAME_PACKET_FILE "game_packet.bin"
-#define HTTP_PACKET_FILE "http_packet.bin"
-#define WEB_PACKET_FILE "web_packet.bin"
+// SSH, RDP, 게임, HTTP, 웹 패킷 데이터 (예시)
+const u_char ssh_packet_data[] = { /* SSH 패킷 데이터 */ };
+const u_char rdp_packet_data[] = { /* RDP 패킷 데이터 */ };
+const u_char game_packet_data[] = { /* 게임 패킷 데이터 */ };
+const u_char http_packet_data[] = { /* HTTP 패킷 데이터 */ };
+const u_char web_packet_data[] = { /* 웹 패킷 데이터 */ };
+
+// 각 패킷 데이터의 크기
+const int ssh_packet_size = sizeof(ssh_packet_data);
+const int rdp_packet_size = sizeof(rdp_packet_data);
+const int game_packet_size = sizeof(game_packet_data);
+const int http_packet_size = sizeof(http_packet_data);
+const int web_packet_size = sizeof(web_packet_data);
 
 // 패킷 유형 열거형
 typedef enum {
@@ -24,49 +30,26 @@ typedef enum {
     UNKNOWN_PACKET
 } PacketType;
 
-// SSH, RDP 등의 패킷 데이터를 읽어오는 함수
-int read_packet_data(const char *file_path, u_char **packet_data, size_t *packet_size) {
-    FILE *file = fopen(file_path, "rb");
-    if (file == NULL) {
-        fprintf(stderr, "Error opening file: %s\n", file_path);
-        return 0;
-    }
-    fseek(file, 0, SEEK_END);
-    *packet_size = ftell(file);
-    fseek(file, 0, SEEK_SET);
-    *packet_data = (u_char *)malloc(*packet_size);
-    fread(*packet_data, 1, *packet_size, file);
-    fclose(file);
-    return 1;
-}
+// 패킷 간 유사도를 계산하는 함수
+float calculate_similarity(const u_char *packet1, int length1, const u_char *packet2, int length2) {
+    // 패킷 데이터의 내용을 비교하여 유사도를 계산
+    int min_length = (length1 < length2) ? length1 : length2;
+    int similarity_count = 0;
 
-// 패킷 데이터를 비교하여 유사도를 계산하는 함수
-float calculate_similarity(const u_char *packet1, size_t length1, const u_char *packet2, size_t length2) {
-    // 패킷 데이터를 바이트 단위로 비교하여 일치하는 비트 수를 계산
-    size_t matching_bits = 0;
-    for (size_t i = 0; i < length1 && i < length2; ++i) {
+    // 패킷 데이터의 각 바이트를 비교하며 유사도 측정
+    for (int i = 0; i < min_length; i++) {
         if (packet1[i] == packet2[i]) {
-            ++matching_bits;
+            similarity_count++;
         }
     }
-    // 패킷 데이터 길이 중 더 작은 값을 유사도 계산에 사용
-    size_t min_length = (length1 < length2) ? length1 : length2;
-    // 유사도는 일치하는 비트의 수를 패킷 데이터의 길이로 나눈 값으로 정의
-    float similarity = (float)matching_bits / min_length;
+
+    // 유사도 계산
+    float similarity = (float)similarity_count / min_length;
     return similarity;
 }
 
 // 패킷 유형을 식별하는 함수
-PacketType identify_packet_type(const u_char *packet, size_t length) {
-    // SSH, RDP 등의 패킷 데이터 읽어오기
-    u_char *ssh_packet_data, *rdp_packet_data, *game_packet_data, *http_packet_data, *web_packet_data;
-    size_t ssh_packet_size, rdp_packet_size, game_packet_size, http_packet_size, web_packet_size;
-    read_packet_data(SSH_PACKET_FILE, &ssh_packet_data, &ssh_packet_size);
-    read_packet_data(RDP_PACKET_FILE, &rdp_packet_data, &rdp_packet_size);
-    read_packet_data(GAME_PACKET_FILE, &game_packet_data, &game_packet_size);
-    read_packet_data(HTTP_PACKET_FILE, &http_packet_data, &http_packet_size);
-    read_packet_data(WEB_PACKET_FILE, &web_packet_data, &web_packet_size);
-
+PacketType identify_packet_type(const u_char *packet, int length) {
     // 패킷과 사전에 수집한 패킷 데이터를 비교하여 유사도를 계산하고 가장 높은 유사도를 가진 패킷의 유형을 식별
     float similarity_ssh = calculate_similarity(packet, length, ssh_packet_data, ssh_packet_size);
     float similarity_rdp = calculate_similarity(packet, length, rdp_packet_data, rdp_packet_size);
@@ -95,19 +78,85 @@ PacketType identify_packet_type(const u_char *packet, size_t length) {
         max_similarity_packet = WEB_PACKET;
     }
 
-    // 메모리 해제
-    free(ssh_packet_data);
-    free(rdp_packet_data);
-    free(game_packet_data);
-    free(http_packet_data);
-    free(web_packet_data);
-
     return max_similarity_packet;
 }
 
 // 패킷 핸들러 함수
 void packet_handler(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char *packet) {
-    // 패킷 분석 코드 (이전과 동일)
+    // 이더넷 헤더, IP 헤더, TCP 헤더 포인터
+    const struct ether_header *eth_header;
+    const struct ip *ip_header;
+    const struct tcphdr *tcp_header;
+    int ip_header_length, tcp_header_length, payload_length;
+    const u_char *payload;
+
+    // 이더넷 헤더 분석
+    eth_header = (struct ether_header *)packet;
+    if (ntohs(eth_header->ether_type) == ETHERTYPE_IP) {
+        ip_header = (struct ip*)(packet + sizeof(struct ether_header));
+
+        // IP 헤더 길이 계산 (IHL 필드는 32비트 워드 단위)
+        ip_header_length = ip_header->ip_hl * 4;
+
+        if (ip_header->ip_p == IPPROTO_TCP) {
+            tcp_header = (struct tcphdr*)((u_char*)ip_header + ip_header_length);
+
+            // TCP 헤더 길이 계산 (Data Offset 필드는 32비트 워드 단위)
+            tcp_header_length = (tcp_header->th_off) * 4;
+
+            // 페이로드 시작 위치 및 길이 계산
+            payload = (u_char*)tcp_header + tcp_header_length;
+            payload_length = pkthdr->len - (sizeof(struct ether_header) + ip_header_length + tcp_header_length);
+
+            // 패킷 유형 식별
+            PacketType packet_type = identify_packet_type(payload, payload_length);
+
+            // 필요한 정보 출력
+            printf("Src MAC: %02x:%02x:%02x:%02x:%02x:%02x, Dst MAC: %02x:%02x:%02x:%02x:%02x:%02x\n",
+                   eth_header->ether_shost[0], eth_header->ether_shost[1], eth_header->ether_shost[2],
+                   eth_header->ether_shost[3], eth_header->ether_shost[4], eth_header->ether_shost[5],
+                   eth_header->ether_dhost[0], eth_header->ether_dhost[1], eth_header->ether_dhost[2],
+                   eth_header->ether_dhost[3], eth_header->ether_dhost[4], eth_header->ether_dhost[5]);
+
+            printf("Src IP: %s, Dst IP: %s\n", inet_ntoa(ip_header->ip_src), inet_ntoa(ip_header->ip_dst));
+            printf("Src Port: %d, Dst Port: %d\n", ntohs(tcp_header->th_sport), ntohs(tcp_header->th_dport));
+            
+            // 패킷 유형 출력
+            switch (packet_type) {
+                case SSH_PACKET:
+                    printf("Packet Type: SSH\n");
+                    break;
+                case RDP_PACKET:
+                    printf("Packet Type: RDP\n");
+                    break;
+                case GAME_PACKET:
+                    printf("Packet Type: GAME\n");
+                    break;
+                case HTTP_PACKET:
+                    printf("Packet Type: HTTP\n");
+                    break;
+                case WEB_PACKET:
+                    printf("Packet Type: WEB\n");
+                    break;
+                case UNKNOWN_PACKET:
+                default:
+                    printf("Packet Type: Unknown\n");
+                    break;
+            }
+
+            // 페이로드 출력
+            if (payload_length > 0) {
+                printf("Payload (%d bytes):\n", payload_length);
+                for (int i = 0; i < payload_length; i++) {
+                    printf("%02x ", payload[i]);
+                    if ((i + 1) % 16 == 0) printf("\n");
+                }
+                printf("\n");
+            } else {
+                printf("No Payload\n");
+            }
+        }
+    }
 }
 
 int main(int argc, char *argv[]) {
