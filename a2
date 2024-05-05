@@ -54,4 +54,16 @@ int main(int argc, char *argv[]) {
 
     // pcap 파일을 열고 핸들을 가져옵니다.
     handle = pcap_open_offline(argv[1], errbuf);
- 
+    if (handle == NULL) {
+        fprintf(stderr, "Error opening pcap file: %s\n", errbuf);
+        return 1;
+    }
+
+    // 패킷을 처리하는 함수를 등록합니다.
+    pcap_loop(handle, 0, packet_handler, NULL);
+
+    // pcap 핸들을 닫습니다.
+    pcap_close(handle);
+
+    return 0;
+}
