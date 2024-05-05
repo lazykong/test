@@ -1,0 +1,154 @@
+#include <pcap.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <netinet/if_ether.h>
+#include <netinet/ip.h>
+#include <netinet/tcp.h>
+#include <netinet/in.h> // inet_ntoa 함수를 사용하기 위한 헤더
+
+// SSH, RDP, 게임, HTTP, 웹 패킷 데이터 파일 경로
+#define SSH_PACKET_FILE "ssh_packet.bin"
+#define RDP_PACKET_FILE "rdp_packet.bin"
+#define GAME_PACKET_FILE "game_packet.bin"
+#define HTTP_PACKET_FILE "http_packet.bin"
+#define WEB_PACKET_FILE "web_packet.bin"
+
+// 패킷 유형 열거형
+typedef enum {
+    SSH_PACKET,
+    RDP_PACKET,
+    GAME_PACKET,
+    HTTP_PACKET,
+    WEB_PACKET,
+    UNKNOWN_PACKET
+} PacketType;
+
+// SSH, RDP 등의 패킷 데이터를 읽어오는 함수
+int read_packet_data(const char *file_path, u_char **packet_data, size_t *packet_size) {
+    FILE *file = fopen(file_path, "rb");
+    if (file == NULL) {
+        fprintf(stderr, "Error opening file: %s\n", file_path);
+        return 0;
+    }
+    fseek(file, 0, SEEK_END);
+    *packet_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    *packet_data = (u_char *)malloc(*packet_size);
+    fread(*packet_data, 1, *packet_size, file);
+    fclose(file);
+    return 1;
+}
+
+// 패킷 데이터를 비교하여 유사도를 계산하는 함수
+float calculate_similarity(const u_char *packet1, size_t length1, const u_char *packet2, size_t length2) {
+    // 패킷 데이터를 바이트 단위로 비교하여 일치하는 비트 수를 계산
+    size_t matching_bits = 0;
+    for (size_t i = 0; i < length1 && i < length2; ++i) {
+        if (packet1[i] == packet2[i]) {
+            ++matching_bits;
+        }
+    }
+    // 패킷 데이터 길이 중 더 작은 값을 유사도 계산에 사용
+    size_t min_length = (length1 < length2) ? length1 : length2;
+    // 유사도는 일치하는 비트의 수를 패킷 데이터의 길이로 나눈 값으로 정의
+    float similarity = (float)matching_bits / min_length;
+    return similarity;
+}
+
+// 패킷 유형을 식별하는 함수
+PacketType identify_packet_type(const u_char *packet, size_t length) {
+    // SSH, RDP 등의 패킷 데이터 읽어오기
+    u_char *ssh_packet_data, *rdp_packet_data, *game_packet_data, *http_packet_data, *web_packet_data;
+    size_t ssh_packet_size, rdp_packet_size, game_packet_size, http_packet_size, web_packet_size;
+    read_packet_data(SSH_PACKET_FILE, &ssh_packet_data, &ssh_packet_size);
+    read_packet_data(RDP_PACKET_FILE, &rdp_packet_data, &rdp_packet_size);
+    read_packet_data(GAME_PACKET_FILE, &game_packet_data, &game_packet_size);
+    read_packet_data(HTTP_PACKET_FILE, &http_packet_data, &http_packet_size);
+    read_packet_data(WEB_PACKET_FILE, &web_packet_data, &web_packet_size);
+
+    // 패킷과 사전에 수집한 패킷 데이터를 비교하여 유사도를 계산하고 가장 높은 유사도를 가진 패킷의 유형을 식별
+    float similarity_ssh = calculate_similarity(packet, length, ssh_packet_data, ssh_packet_size);
+    float similarity_rdp = calculate_similarity(packet, length, rdp_packet_data, rdp_packet_size);
+    float similarity_game = calculate_similarity(packet, length, game_packet_data, game_packet_size);
+    float similarity_http = calculate_similarity(packet, length, http_packet_data, http_packet_size);
+    float similarity_web = calculate_similarity(packet, length, web_packet_data, web_packet_size);
+
+    // 가장 높은 유사도를 가진 패킷 유형을 반환
+    float max_similarity = similarity_ssh;
+    PacketType max_similarity_packet = SSH_PACKET;
+
+    if (similarity_rdp > max_similarity) {
+        max_similarity = similarity_rdp;
+        max_similarity_packet = RDP_PACKET;
+    }
+    if (similarity_game > max_similarity) {
+        max_similarity = similarity_game;
+        max_similarity_packet = GAME_PACKET;
+    }
+    if (similarity_http > max_similarity) {
+        max_similarity = similarity_http;
+        max_similarity_packet = HTTP_PACKET;
+    }
+    if (similarity_web > max_similarity) {
+        max_similarity = similarity_web;
+        max_similarity_packet = WEB_PACKET;
+    }
+
+    // 메모리 해제
+    free(ssh_packet_data);
+    free(rdp_packet_data);
+    free(game_packet_data);
+    free(http_packet_data);
+    free(web_packet_data);
+
+    return max_similarity_packet;
+}
+
+// 패킷 핸들러 함수
+void packet_handler(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char *packet) {
+    // 패킷 분석 코드 (이전과 동일)
+}
+
+int main(int argc, char *argv[]) {
+    pcap_t *handle;
+    char errbuf[PCAP_ERRBUF_SIZE];
+    struct bpf_program fp;
+    char filter_exp[] = "tcp";
+    bpf_u_int32 net;
+
+    // pcap 파일 경로 확인
+    if (argc != 2) {
+        fprintf(stderr, "Usage: %s pcap_file\n", argv[0]);
+        return 1;
+    }
+
+    // pcap 파일 열기
+    handle = pcap_open_offline(argv[1], errbuf);
+    if (handle == NULL) {
+        fprintf(stderr, "Error opening pcap file: %s\n", errbuf);
+        return 2;
+    }
+
+    // 필터 표현식 컴파일
+    if (pcap_compile(handle, &fp, filter_exp, 0, net) == -1) {
+        fprintf(stderr, "%s 필터 파싱 실패: %s\n", filter_exp, pcap_geterr(handle));
+        exit(2);
+    }
+
+    // 필터 설정
+    if (pcap_setfilter(handle, &fp) == -1) {
+        fprintf(stderr, "%s 필터 설치 실패: %s\n", filter_exp, pcap_geterr(handle));
+        exit(2);
+    }
+
+    // 패킷 캡처 시작 - 각 패킷에 대해 패킷 핸들러 콜백 함수를 호출하는 무한 루프
+    pcap_loop(handle, 0, packet_handler, NULL);
+
+    // 종료 시 리소스 정리
+    pcap_freecode(&fp);
+    pcap_close(handle);
+
+    printf("캡처 완료.\n");
+    return 0;
+}
