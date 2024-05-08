@@ -58,53 +58,36 @@ void packet_handler(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char
     }
 }
 
-int main() {
-    pcap_if_t *alldevsp, *device;
-    char errbuf[PCAP_ERRBUF_SIZE], *dev;
+int main(int argc, char *argv[]) {
     pcap_t *handle;
+    char errbuf[PCAP_ERRBUF_SIZE];
     struct bpf_program fp;
     char filter_exp[] = "tcp"; // TCP 필터
     bpf_u_int32 net;
 
-    // 사용할 네트워크 장치 찾기
-    if (pcap_findalldevs(&alldevsp, errbuf)) {
-        fprintf(stderr, "Error in pcap_findalldevs: %s\n", errbuf);
-        exit(1);
+    // 명령줄 인자로 pcapng 파일을 받아서 처리
+    if (argc != 2) {
+        fprintf(stderr, "Usage: %s <pcapng file>\n", argv[0]);
+        return 1;
     }
 
-    // 첫 번째 네트워크 장치 사용
-    device = alldevsp;
-    if (device == NULL) {
-        fprintf(stderr, "No devices found.\n");
-        return 2;
-    }
-    dev = device->name;
-
-    printf("Using device %s\n", dev);
-
-    // 장치 열기
-    handle = pcap_open_live(dev, BUFSIZ, 1, 1000, errbuf);
+    // 파일 열기
+    handle = pcap_open_offline(argv[1], errbuf);
     if (handle == NULL) {
-        fprintf(stderr, "Couldn't open device %s: %s\n", dev, errbuf);
-        exit(2);
-    }
-
-    // 네트워크 디바이스의 네트워크 번호와 마스크 얻기
-    if (pcap_lookupnet(dev, &net, &net, errbuf) == -1) {
-        fprintf(stderr, "Couldn't get netmask for device %s: %s\n", dev, errbuf);
-        net = 0;
+        fprintf(stderr, "Couldn't open file %s: %s\n", argv[1], errbuf);
+        return 2;
     }
 
     // 필터 표현식 컴파일
     if (pcap_compile(handle, &fp, filter_exp, 0, net) == -1) {
         fprintf(stderr, "Couldn't parse filter %s: %s\n", filter_exp, pcap_geterr(handle));
-        exit(2);
+        return 2;
     }
 
     // 필터 설정
     if (pcap_setfilter(handle, &fp) == -1) {
         fprintf(stderr, "Couldn't install filter %s: %s\n", filter_exp, pcap_geterr(handle));
-        exit(2);
+        return 2;
     }
 
     // 패킷 캡처 시작 - 무한 루프로 각 패킷마다 packet_handler 콜백 함수 호출
@@ -113,8 +96,7 @@ int main() {
     // 종료 시 리소스 정리
     pcap_freecode(&fp);
     pcap_close(handle);
-    pcap_freealldevs(alldevsp);
 
-    printf("Capture complete.\n");
+    printf("Analysis complete.\n");
     return 0;
 }
