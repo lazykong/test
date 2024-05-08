@@ -9,8 +9,7 @@
 #include <string.h>
 
 // TCP 패킷 분석 함수
-void analyze_tcp_packet(const struct ether_header *eth_header, const struct ip *ip_header, const struct tcphdr *tcp_header, const u_char *payload, 
-int payload_length) {
+void analyze_tcp_packet(const struct ether_header *eth_header, const struct ip *ip_header, const struct tcphdr *tcp_header, const u_char *payload, int payload_length) {
     printf("----- TCP Packet Analysis -----\n");
     printf("Src MAC: %02x:%02x:%02x:%02x:%02x:%02x, Dst MAC: %02x:%02x:%02x:%02x:%02x:%02x\n",
            eth_header->ether_shost[0], eth_header->ether_shost[1], eth_header->ether_shost[2],
