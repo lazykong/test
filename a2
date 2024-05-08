@@ -19,12 +19,17 @@ void analyze_tcp_packet(const struct ether_header *eth_header, const struct ip *
     printf("Src IP: %s, Dst IP: %s\n", inet_ntoa(ip_header->ip_src), inet_ntoa(ip_header->ip_dst));
     printf("Src Port: %d, Dst Port: %d\n", ntohs(tcp_header->th_sport), ntohs(tcp_header->th_dport));
 
-    // 추가로 SSH 패킷인지 확인
+    // SSH 패킷인지 확인
     if (ntohs(tcp_header->th_dport) == 22 || ntohs(tcp_header->th_sport) == 22) {
         printf("SSH Packet Detected\n");
-    }    
+    } 
+    // RDP 패킷인지 확인  
     else if(ntohs(tcp_header->th_dport) == 3389 || ntohs(tcp_header->th_sport) == 3389) {
         printf("RDP Packet Detected\n");
+    }
+    // GAME 패킷인지 확인, 해당 패킷 파일에서는 25565
+    else if(ntohs(tcp_header->th_dport) == 25565 || ntohs(tcp_header->th_sport) == 25565) {
+        printf("GAME Packet Detected\n");
     }
     else {
         printf("Unknown\n");
