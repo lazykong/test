@@ -27,9 +27,19 @@ void analyze_tcp_packet(const struct ether_header *eth_header, const struct ip *
     else if(ntohs(tcp_header->th_dport) == 3389 || ntohs(tcp_header->th_sport) == 3389) {
         printf("RDP Packet Detected\n");
     }
-    // GAME 패킷인지 확인, 해당 패킷 파일에서는 25565
-    else if(ntohs(tcp_header->th_dport) == 25565 || ntohs(tcp_header->th_sport) == 25565) {
+    // GAME 패킷인지 확인
+    else if(ntohs(tcp_header->th_dport) == 25565 || ntohs(tcp_header->th_sport) == 25565 || // 해당 패킷 파일에서는 25565
+            ntohs(tcp_header->th_dport) == 8008 || ntohs(tcp_header->th_sport) == 8008 || // 일부 게임 서버
+            ntohs(tcp_header->th_dport) == 27015 || ntohs(tcp_header->th_sport) == 27015) { // 게임 서버 (예: Counter-Strike)
         printf("GAME Packet Detected\n");
+    }
+    // HTTP 패킷인지 확인
+    else if(ntohs(tcp_header->th_dport) == 443 || ntohs(tcp_header->th_sport) == 443 ||
+            ntohs(tcp_header->th_dport) == 80 || ntohs(tcp_header->th_sport) == 80 ||
+            ntohs(tcp_header->th_dport) == 8080 || ntohs(tcp_header->th_sport) == 8080 || // 대부분의 웹 서버
+            ntohs(tcp_header->th_dport) == 8000 || ntohs(tcp_header->th_sport) == 8000 || // 일부 웹 서버
+            ntohs(tcp_header->th_dport) == 8443 || ntohs(tcp_header->th_sport) == 8443 ) {// HTTPS (일부 서버)
+        printf("WEP Packet Detected\n");
     }
     else {
         printf("Unknown\n");
