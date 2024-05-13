@@ -23,7 +23,7 @@ void packet_handler(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char
     payload_length = pkthdr->len - (ethernet_header_size + ip_header_size + tcp_header_size);
 
     // HTTP 패턴 검색
-    if (payload_length >= 4 && memcmp(payload, "HTTP", 4) == 0) {
+    if (payload_length >= 4 && (memcmp(payload, "HTTP", 4) == 0 || memcmp(payload, "HTTP", 4) == 0)) {
         printf("HTTP 프로토콜 발견\n");
     }
     // SSH 패턴 검색
