@@ -22,9 +22,15 @@ void packet_handler(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char
     // 페이로드 길이 계산
     payload_length = pkthdr->len - (ethernet_header_size + ip_header_size + tcp_header_size);
 
-    // HTTP 패턴 검색
-    if (payload_length >= 4 && (memcmp(payload, "HTTP", 4) == 0 || memcmp(payload, "HTTP", 4) == 0)) {
-        printf("HTTP 프로토콜 발견\n");
+    // HTTP/HTTPS 패턴 검색
+    if (payload_length >= 5 && (memcmp(payload, "GET /", 5) == 0 || memcmp(payload, "POST /", 6) == 0)) {
+        // 추가적인 패턴 검색하여 HTTPS인지 확인
+        const u_char *https_check = strstr(payload, "HTTP");
+        if (https_check != NULL) {
+            printf("HTTPS 프로토콜 발견\n");
+        } else {
+            printf("HTTP 프로토콜 발견\n");
+        }
     }
     // SSH 패턴 검색
     else if (payload_length >= 3 && memcmp(payload, "SSH", 3) == 0) {
