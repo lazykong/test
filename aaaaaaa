@@ -1,0 +1,107 @@
+#include <pcap.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <arpa/inet.h>
+#include <netinet/if_ether.h>
+#include <netinet/ip.h>
+#include <netinet/tcp.h>
+
+// HTTP 패킷 페이로드 특징 확인
+void analyze_http_payload(const u_char *payload, int payload_length) {
+    const char *http_keywords[] = {"GET ", "POST ", "HTTP/", "Host: "};
+    int num_keywords = sizeof(http_keywords) / sizeof(http_keywords[0]);
+
+    printf("HTTP Payload Analysis:\n");
+
+    // HTTP 페이로드에서 특정 키워드 확인
+    for (int i = 0; i < num_keywords; i++) {
+        const char *keyword = http_keywords[i];
+        if (strstr((const char *)payload, keyword) != NULL) {
+            printf("HTTP Keyword found: %s\n", keyword);
+        }
+    }
+}
+
+// SSH 패킷 페이로드 특징 확인
+void analyze_ssh_payload(const u_char *payload, int payload_length) {
+    const char *ssh_banner = "SSH-";
+    if (strstr((const char *)payload, ssh_banner) != NULL) {
+        printf("SSH Banner found: %s\n", ssh_banner);
+    }
+}
+
+// RDP 패킷 페이로드 특징 확인
+void analyze_rdp_payload(const u_char *payload, int payload_length) {
+    // RDP 패킷의 특징 확인하기 위한 추가 코드 작성
+}
+
+// 패킷 핸들러 함수
+void packet_handler(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char *packet) {
+    const struct ether_header *eth_header;
+    const struct ip *ip_header;
+    const struct tcphdr *tcp_header;
+    const u_char *payload;
+    int ip_header_length;
+    int tcp_header_length;
+    int payload_length;
+
+    // 이더넷 헤더 분석
+    eth_header = (struct ether_header *)packet;
+    if (ntohs(eth_header->ether_type) == ETHERTYPE_IP) {
+        // IP 헤더 분석
+        ip_header = (struct ip*)(packet + sizeof(struct ether_header));
+        ip_header_length = ip_header->ip_hl * 4;
+
+        if (ip_header->ip_p == IPPROTO_TCP) {
+            // TCP 헤더 분석
+            tcp_header = (struct tcphdr*)(packet + sizeof(struct ether_header) + ip_header_length);
+            tcp_header_length = tcp_header->th_off * 4;
+
+            // 페이로드 분석
+            payload = packet + sizeof(struct ether_header) + ip_header_length + tcp_header_length;
+            payload_length = pkthdr->len - (sizeof(struct ether_header) + ip_header_length + tcp_header_length);
+
+            // TCP 포트에 따라 다른 프로토콜의 패킷인지 확인
+            int src_port = ntohs(tcp_header->th_sport);
+            int dst_port = ntohs(tcp_header->th_dport);
+
+            if (src_port == 80 || dst_port == 80) {
+                // HTTP 패킷인 경우
+                analyze_http_payload(payload, payload_length);
+            } else if (src_port == 22 || dst_port == 22) {
+                // SSH 패킷인 경우
+                analyze_ssh_payload(payload, payload_length);
+            } else if (src_port == 3389 || dst_port == 3389) {
+                // RDP 패킷인 경우
+                analyze_rdp_payload(payload, payload_length);
+            }
+        }
+    }
+}
+
+int main(int argc, char *argv[]) {
+    pcap_t *handle;
+    char errbuf[PCAP_ERRBUF_SIZE];
+
+    // 명령줄 인자로 pcapng 파일을 받아서 처리
+    if (argc != 2) {
+        fprintf(stderr, "Usage: %s <pcapng file>\n", argv[0]);
+        return 1;
+    }
+
+    // 파일 열기
+    handle = pcap_open_offline(argv[1], errbuf);
+    if (handle == NULL) {
+        fprintf(stderr, "Couldn't open file %s: %s\n", argv[1], errbuf);
+        return 2;
+    }
+
+    // 패킷 캡처 시작 - 무한 루프로 각 패킷마다 packet_handler 콜백 함수 호출
+    pcap_loop(handle, 0, packet_handler, NULL);
+
+    // 종료 시 리소스 정리
+    pcap_close(handle);
+
+    return 0;
+}
