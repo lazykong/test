@@ -124,4 +124,29 @@ int main(int argc, char *argv[]) {
     // 파일 열기
     handle = pcap_open_offline(argv[1], errbuf);
     if (handle == NULL) {
-        fprintf(stderr,
+        fprintf(stderr, "Couldn't open file %s: %s\n", argv[1], errbuf);
+        return 2;
+    }
+
+    // 필터 표현식 컴파일
+    if (pcap_compile(handle, &fp, filter_exp, 0, net) == -1) {
+        fprintf(stderr, "Couldn't parse filter %s: %s\n", filter_exp, pcap_geterr(handle));
+        return 2;
+    }
+
+    // 필터 설정
+    if (pcap_setfilter(handle, &fp) == -1) {
+        fprintf(stderr, "Couldn't install filter %s: %s\n", filter_exp, pcap_geterr(handle));
+        return 2;
+    }
+
+    // 패킷 캡처 시작 - 무한 루프로 각 패킷마다 packet_handler 콜백 함수 호출
+    pcap_loop(handle, 0, packet_handler, NULL);
+
+    // 종료 시 리소스 정리
+    pcap_freecode(&fp);
+    pcap_close(handle);
+
+    printf("Analysis complete.\n");
+    return 0;
+}
